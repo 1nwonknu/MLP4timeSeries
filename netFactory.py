@@ -40,7 +40,7 @@ class NetFactory():
 
                 for i, layer in enumerate(self.params):
                     if i != len(self.params):
-                        x = torch.sigmoid(layer(x))
+                        x = layer(x)
                     else:
                         x = layer(x)
                 return x
