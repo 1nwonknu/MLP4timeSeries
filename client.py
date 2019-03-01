@@ -11,55 +11,17 @@ import netFactory
 
 gVerbose = False
 
-def trainingLog(epoch, it, numBatches, loss, acc):
-    print('Epoch: [{0}][{1}/{2}]\t'
-                  'Loss {loss:.4f}\t'
-                  'Acc {acc:.3f}'.format(
-                   epoch, it, numBatches, loss=loss, acc=acc))
+
+def appendDateAndTimeToString(string):
+    now = datetime.utcnow().strftime("%m_%d_%H_%M_%S")
+    return string + "_" + now
 
 
-def train(model, device, train_loader, writer, optimiser, epoch, n_iter, vizStep=100, logStep=25):
-    model.train() # this enables parameter updates during backpropagation as well
-                  # as other updates such as those in batch-normalisation layers
-
-    # for every mini-batch containing batch_size images...
-    for i, data in enumerate(train_loader, 0):
-
-        # zero gradients from previous step
-        optimiser.zero_grad()
-
-        # send the data (images, labels) to the device (either CPU or GPU)
-        inputs, labels = data[0].to(device), data[1].to(device)
-
-        # forward pass
-        # this executes the forward() method in the model
-        outputs = model(inputs)
-
-        # compute loss
-        loss = model.criterion(outputs, labels)
-
-        # backward pass
-        loss.backward()
-
-        # evaluate trainable parameters
-        optimiser.step()
-
-        # the code below is just for monitoring purposes using print() statements
-        # as well as writing certain values to TensorBoard
-        if i % vizStep == 0:
-            r2 = getRsquared(outputs, labels, inputs.shape[0])
-            # print training status
-            trainingLog(epoch,i, len(train_loader), loss.item(), r2)
-
-        if i % logStep == 0:
-            # Compute accuracy and write values to Tensorboard
-            acc = getRsquared(outputs, labels, inputs.shape[0])
-            writer.add_scalar('train/loss', loss.item(), n_iter)
-            writer.add_scalar('train/acc', r2, n_iter)
-
-        n_iter += inputs.shape[0]
-
-    return n_iter
+def createTensorBoardWriter(resultsDirectory):
+    dir = appendDateAndTimeToString(resultsDirectory + '/')
+    writer = SummaryWriter(dir)
+    print("TensorBoardX writer created directory in %s" % dir)
+    return writer, dir
 
 
 def getRsquared(outputs, labels, num):
@@ -78,43 +40,6 @@ def getRsquared(outputs, labels, num):
     r2 = ssreg / sstot
 
     return r2
-
-
-def test(model, device, test_loader, writer):
-
-    model.eval() # no update of trainable parameters (e.g. batch norm)
-    predictions = []
-    with torch.no_grad():
-        total = 0
-
-        # now we evaluate every test image and compute the predicted labels
-        for data in test_loader:
-            # send data to device
-            images, labels = data[0].to(device), data[1].to(device)
-
-            # pass the images through the network
-            outputs = model(images)
-
-            # obtain predicted labels
-            predicted = outputs.data
-            predictions.append(predicted)
-
-            total += labels.size(0)
-
-    # compute accuracy
-
-    return predictions
-
-def appendDateAndTimeToString(string):
-    now = datetime.utcnow().strftime("%m_%d_%H_%M_%S")
-    return string + "_" + now
-
-
-def createTensorBoardWriter(resultsDirectory):
-    dir = appendDateAndTimeToString(resultsDirectory + '/')
-    writer = SummaryWriter(dir)
-    print("TensorBoardX writer created directory in %s" % dir)
-    return writer, dir
 
 
 def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_bak = 15):
@@ -148,7 +73,7 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
     testLoader = slicer.getTrainingSet()
 
     # Create instance of Network
-    net = netFactory.NetFactory(hidden_layers=[loock_bak, 100, 1000, 1000, 1000, 1000, 1000, 1000],
+    net = netFactory.NetFactory(performance_func=getRsquared, hidden_layers=[loock_bak, 100, 1000, 1000, 1000, 1000, 1000, 1000],
         n_input=loock_bak, n_output=n_step_ahead_predictions).createNeuralNetwork()
 
     writer, dir = createTensorBoardWriter('./results/' + net.name + '/lr' + str(lr))
@@ -171,12 +96,12 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
     print("-------------------------------------------------")
     for epoch in range(1, numEpoch + 1):
         t0 = time.time()
-        n_iter = train(net, device, trainLoader, writer, optim, epoch, n_iter)
+        n_iter = net.train_(device, trainLoader, writer, optim, epoch, n_iter)
         print("Epoch took: %.3f s" % (time.time() - t0))
         print("-------------------------------------------------")
 
     # Evaluate on test set
-    predictions = test(net, device, testLoader, writer)
+    predictions = net.test(device, testLoader, writer)
 
     if gVerbose:
         print ("predictions")
@@ -207,6 +132,7 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
 
     plt.plot(predictions, label = "predicted")
     plt.plot(actual, label="actual")
+    plt.legend(loc="best")
     plt.show()
 
 
