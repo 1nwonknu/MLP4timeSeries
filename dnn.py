@@ -117,7 +117,7 @@ def createTensorBoardWriter(resultsDirectory):
     return writer, dir
 
 
-def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_bak = 2):
+def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_bak = 15):
 
     # Create Dataset loaders
 
@@ -131,14 +131,14 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
     df = aggregator.ag_df
 
     start = '2016-06-23 00:00:00'
-    end = '2016-06-24 20:00:00'
+    end = '2016-06-25 20:00:00'
 
     slicer = fxdata.Slicer(df, start, end,
-                           n_step_ahead_prediction=n_step_ahead_predictions,
-                           loockback= loock_bak)
+                           n_step_ahead_prediction = n_step_ahead_predictions,
+                           loockback = loock_bak)
     trainLoader = slicer.getTrainingSet()
 
-    start = '2016-06-27 01:00:00'
+    start = '2016-06-25 01:00:00'
     end = '2016-06-28 23:00:00'
 
     slicer = fxdata.Slicer(df, start, end,
@@ -148,7 +148,7 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
     testLoader = slicer.getTrainingSet()
 
     # Create instance of Network
-    net = netFactory.NetFactory(hidden_layers=[loock_bak, loock_bak],
+    net = netFactory.NetFactory(hidden_layers=[loock_bak, 100, 1000, 1000, 1000, 1000, 1000, 1000],
         n_input=loock_bak, n_output=n_step_ahead_predictions).createNeuralNetwork()
 
     writer, dir = createTensorBoardWriter('./results/' + net.name + '/lr' + str(lr))
@@ -212,7 +212,7 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
 
 if __name__ == '__main__':
     # execute the main loop
-    main(numEpoch=5, use_cuda=False, lr=0.1)
+    main(numEpoch=5, use_cuda=False, lr=0.1, loock_bak=20)
 
     def launchTensorBoard():
         import os
