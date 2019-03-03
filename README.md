@@ -1,5 +1,6 @@
 ## MLP4timeSeries
-Simple example of deep neural network for financial time series forecasting, including no sql database store and data retrieval
+Simple example of deep neural network for financial time series forecasting, including no sql database store and data retrieval.
+Implemented a deep neural network and a convolutional neural network.
 
 # Example
 import fxdata
