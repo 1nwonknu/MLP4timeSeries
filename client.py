@@ -61,6 +61,7 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
     slicer = fxdata.Slicer(df, start, end,
                            n_step_ahead_prediction = n_step_ahead_predictions,
                            loockback = loock_bak)
+
     trainLoader = slicer.getTrainingSet()
 
     start = '2016-06-25 01:00:00'
@@ -73,8 +74,14 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
     testLoader = slicer.getTrainingSet()
 
     # Create instance of Network
-    net = netFactory.NetFactory(performance_func=getRsquared, hidden_layers=[loock_bak, 100, 1000, 1000, 1000, 1000, 1000, 1000],
-        n_input=loock_bak, n_output=n_step_ahead_predictions).createNeuralNetwork()
+    ## deep neural network
+    #net = netFactory.NetFactory(performance_func=getRsquared, hidden_layers=[loock_bak, 100, 1000, 1000, 1000, 1000, 1000, 1000],
+    #    n_input=loock_bak, n_output=n_step_ahead_predictions).createNeuralNetwork()
+
+    ## convolutional neural network
+    net = netFactory.NetFactory(performance_func=getRsquared,
+                                hidden_layers=[],
+                                n_input=loock_bak, n_output=n_step_ahead_predictions).createConvNet()
 
     writer, dir = createTensorBoardWriter('./results/' + net.name + '/lr' + str(lr))
 
@@ -138,7 +145,7 @@ def main(numEpoch, use_cuda=False, lr=0.1, n_step_ahead_predictions = 1, loock_b
 
 if __name__ == '__main__':
     # execute the main loop
-    main(numEpoch=5, use_cuda=False, lr=0.1, loock_bak=20)
+    main(numEpoch=5, use_cuda=False, lr=0.1, loock_bak=25)
 
     def launchTensorBoard():
         import os

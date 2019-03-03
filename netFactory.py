@@ -23,16 +23,17 @@ class Net(nn.Module):
         self.name = "Net"
         self.logger = logger
 
-        assert hidden_layers[0] == loock_back
+        if len(hidden_layers) > 1:
+            assert hidden_layers[0] == loock_back
 
-        self.params = nn.ModuleList()
-        self.params.append(nn.Linear(loock_back, hidden_layers[1]))
-        if len(hidden_layers) == 2:
-            self.params.append(nn.Linear(hidden_layers[1], numClasses))
-        else:
-            for i in range(1, len(hidden_layers)-1):
-                self.params.append(nn.Linear(hidden_layers[i], hidden_layers[i+1]))
-            self.params.append(nn.Linear(hidden_layers[i], numClasses))
+            self.params = nn.ModuleList()
+            self.params.append(nn.Linear(loock_back, hidden_layers[1]))
+            if len(hidden_layers) == 2:
+                self.params.append(nn.Linear(hidden_layers[1], numClasses))
+            else:
+                for i in range(1, len(hidden_layers)-1):
+                    self.params.append(nn.Linear(hidden_layers[i], hidden_layers[i+1]))
+                self.params.append(nn.Linear(hidden_layers[i], numClasses))
 
         self.activation = nn.Sigmoid()
         self.criterion = nn.MSELoss()
@@ -42,13 +43,9 @@ class Net(nn.Module):
 
 
     def forward(self, x):
-        x = x.view(-1, x.shape[1])
 
         for i, layer in enumerate(self.params):
-            if i != len(self.params):
-                x = layer(x)
-            else:
-                x = layer(x)
+            x = layer(x)
         return x
 
     def __getPrettyTensorShape(self, tensor):
@@ -88,12 +85,13 @@ class Net(nn.Module):
             # zero gradients from previous step
             optimiser.zero_grad()
 
-            # send the data (images, labels) to the device (either CPU or GPU)
             inputs, labels = data[0].to(device), data[1].to(device)
 
             # forward pass
             # this executes the forward() method in the model
             outputs = model(inputs)
+
+            outputs = outputs.view(-1, outputs.shape[1])
 
             # compute loss
             loss = model.criterion(outputs, labels)
@@ -104,18 +102,12 @@ class Net(nn.Module):
             # evaluate trainable parameters
             optimiser.step()
 
-            # the code below is just for monitoring purposes using print() statements
-            # as well as writing certain values to TensorBoard
             if i % vizStep == 0:
-                #r2 = self.getRsquared(outputs, labels, inputs.shape[0])
                 r2 = self.performance_func(outputs, labels, inputs.shape[0])
-
-                # print training status
                 self.trainingLog(epoch, i, len(train_loader), loss.item(), r2)
 
             if i % logStep == 0:
                 # Compute accuracy and write values to Tensorboard
-                #acc = self.getRsquared(outputs, labels, inputs.shape[0])
                 acc = self.performance_func(outputs, labels, inputs.shape[0])
 
                 writer.add_scalar('train/loss', loss.item(), n_iter)
@@ -133,9 +125,7 @@ class Net(nn.Module):
         with torch.no_grad():
             total = 0
 
-            # now we evaluate every test image and compute the predicted labels
             for data in test_loader:
-                # send data to device
                 images, labels = data[0].to(device), data[1].to(device)
 
                 # pass the images through the network
@@ -173,6 +163,10 @@ class NetFactory():
                                           loock_back=loock_back,
                                           numClasses=numClasses)
 
+            def forward(self, x):
+                x = x.view(-1, x.shape[1])
+                return super(MLP, self).forward(x)
+
         class Linear(torch.nn.Linear):
             def __init__(self, in_features, out_features, bias):
                 super(Linear, self).__init__(in_features, out_features, bias=bias)
@@ -187,4 +181,58 @@ class NetFactory():
                    logger=Logger(),
                    hidden_layers=hidden_layers,
                    loock_back= loock_back ,
+                   numClasses=numClasses)
+
+    def createConvNet(self):
+        hidden_layers = self.hidden_layers
+        loock_back = self.n_input
+        numClasses = self.n_output
+
+        class ConvNet(Net):
+            def __init__(self,  performance_func, logger, hidden_layers, loock_back, numClasses):
+                super(ConvNet, self).__init__(performance_func=performance_func,
+                                              logger=logger,
+                                              hidden_layers=hidden_layers,
+                                              loock_back=loock_back,
+                                              numClasses=numClasses)
+
+                self.layer1 = nn.Sequential(
+                nn.Conv1d(in_channels=loock_back, out_channels=numClasses, kernel_size=1, stride=1),#, 1, kernel_size=1, stride=1, padding=2),
+                #nn.BatchNorm1d(loock_back),
+                #nn.Sigmoid(),
+                nn.MaxPool1d(kernel_size=1, stride=2))
+
+                self.layer2 = nn.Sequential(
+                nn.Conv1d(in_channels=numClasses, out_channels=numClasses, kernel_size=1),# stride=1, padding=2),
+                #nn.BatchNorm1d(loock_back),
+                #nn.Sigmoid(),
+                nn.MaxPool1d(kernel_size=1))#, stride=2))
+
+                #self.layer3 = nn.Dropout(0.005)
+
+                self.layer4 = nn.Sequential(
+                    nn.Conv1d(in_channels=numClasses, out_channels=numClasses, kernel_size=1),  # stride=1, padding=2),
+                    # nn.BatchNorm1d(loock_back),
+                    # nn.Sigmoid(),
+                    nn.MaxPool1d(kernel_size=1))  # , stride=2))
+
+
+                #self.fc = nn.Linear(loock_back, numClasses)
+
+                self.params = nn.ModuleList()
+                self.params.append(self.layer1)
+                self.params.append(self.layer2)
+                #self.params.append(self.layer3)
+                #self.params.append(self.layer4)
+
+                #self.params.append(self.fc)
+
+            def forward(self, x):
+                x = x.view(-1, x.shape[1], 1)
+                return super(ConvNet, self).forward(x)
+
+        return ConvNet(performance_func=self.performance_func,
+                   logger=Logger(),
+                   hidden_layers=hidden_layers,
+                   loock_back=loock_back,
                    numClasses=numClasses)
